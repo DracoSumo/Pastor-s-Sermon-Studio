@@ -86,8 +86,23 @@ export default function Page() {
         if (merged.length) setVerses(merged as any)
       } else {
         // fallback older schema
-        const { data: versesOld } = await supabase.from('verses').select('*')
-        if (versesOld) setVerses((versesOld as any).map(v=>({ref:v.ref, text:v.text_by_translation, themes:v.themes})))
+      // fallback older schema
+const { data: versesOld } = await supabase.from('verses').select('*')
+if (versesOld) {
+  type OldVerseRow = {
+    ref: string
+    text_by_translation: Record<string, string>
+    themes: string[]
+  }
+  setVerses(
+    (versesOld as OldVerseRow[]).map((v: OldVerseRow) => ({
+      ref: v.ref,
+      text: v.text_by_translation,
+      themes: v.themes,
+    }))
+  )
+}
+
       }
       const { data: seriesRows } = await supabase.from('series').select('*').order('created_at',{ascending:false})
       if (seriesRows) setSeries(seriesRows as any)

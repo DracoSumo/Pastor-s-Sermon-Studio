@@ -1,354 +1,341 @@
 
+// app/page.tsx — with Auth, Auto-onboarding, Church Switcher, ICS Feed
 'use client'
-import React, { useMemo, useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { getSupabaseClient } from '@/lib/supabaseClient'
-import type { Sermon, Series, Song, Verse } from '@/lib/types'
 
-const TRANSLATIONS = [
-  { id: 'KJV', name: 'King James Version (KJV)' },
-  { id: 'ESV', name: 'English Standard Version (ESV)' },
-  { id: 'NIV', name: 'New International Version (NIV)' },
-  { id: 'NKJV', name: 'New King James Version (NKJV)' },
-  { id: 'CSB', name: 'Christian Standard Bible (CSB)' },
-]
-const THEMES = ['faith','love','grace','hope','holiness','discipleship','mission','transformation','trust','praise']
+export const dynamic = 'force-dynamic'
 
-const FALLBACK_SONGS: Song[] = [
-  { id: 1, title: 'How Great Is Our God', artist: 'Chris Tomlin', themes: ['greatness','praise'], tempo: 'mid' },
-  { id: 2, title: 'Oceans (Where Feet May Fail)', artist: 'Hillsong UNITED', themes: ['faith','trust'], tempo: 'slow' },
-  { id: 3, title: 'Reckless Love', artist: 'Cory Asbury', themes: ['love','grace'], tempo: 'mid' },
-  { id: 4, title: 'Build My Life', artist: 'Pat Barrett', themes: ['holiness','surrender'], tempo: 'mid' },
-  { id: 5, title: 'Graves Into Gardens', artist: 'Elevation Worship', themes: ['transformation','victory'], tempo: 'up' },
-  { id: 6, title: 'The Blessing', artist: 'Kari Jobe & Elevation', themes: ['blessing','benediction'], tempo: 'slow' },
-]
-const FALLBACK_VERSES: Verse[] = [
-  { ref: 'John 3:16', text: { KJV:'For God so loved the world...', ESV:'For God so loved the world...', NIV:'For God so loved the world...', NKJV:'For God so loved the world...', CSB:'For God loved the world...' }, themes: ['salvation','love','gospel'] },
-  { ref: 'Psalm 23:1', text: { KJV:'The LORD is my shepherd; I shall not want.', ESV:'The Lord is my shepherd; I shall not want.', NIV:'The Lord is my shepherd, I lack nothing.', NKJV:'The Lord is my shepherd; I shall not want.', CSB:'The Lord is my shepherd; I have what I need.' }, themes: ['trust','guidance','shepherd'] },
-  { ref: 'Matthew 28:19-20', text: { KJV:'Go ye therefore...', ESV:'Go therefore...', NIV:'Therefore go...', NKJV:'Go therefore...', CSB:'Go, therefore...' }, themes: ['mission','discipleship','great commission'] },
-  { ref: 'Romans 12:2', text: { KJV:'Be not conformed...', ESV:'Do not be conformed...', NIV:'Do not conform...', NKJV:'Do not be conformed...', CSB:'Do not be conformed...' }, themes: ['transformation','holiness','mind'] },
-]
+import { useEffect, useMemo, useState } from 'react'
+import AuthCard from '@/components/AuthCard'
+import ChurchSwitcher from '@/components/ChurchSwitcher'
+import { getSupabase } from '@/components/supabaseClient'
 
-function suggestIdeas(theme: string, verses: Verse[]) {
-  const verseThemes = new Set(verses.flatMap(r=>r.themes))
-  const allThemes = new Set([theme, ...verseThemes])
-  const bullets = [
-    `Tension: Where are we conforming (Rom 12:2) instead of transforming?`,
-    `Gospel: God's love initiates (John 3:16) — we respond in faith.`,
-    `Practice: Three habits to renew the mind this week.`,
-    `Mission: Everyday discipleship rhythms (Matt 28:19–20).`,
-    `Comfort: The Shepherd's care in uncertainty (Ps 23).`,
-  ]
-  const lens = Array.from(allThemes).slice(0,3).join(', ')
-  return [
-    `Big Idea: A ${theme || 'Christ-centered'} life shaped by Scripture and Spirit.`,
-    `Text Lens: ${lens}.`,
-    ...bullets
-  ]
+export type SongRow = {
+  id: number
+  title: string
+  artist: string
+  themes: string[]
+  tempo: 'slow' | 'mid' | 'up'
+  song_key?: string | null
+  bpm?: number | null
+  ccli_number?: string | null
 }
 
-function randomColor() {
-  const palette = ['#22c55e','#06b6d4','#a855f7','#f97316','#ef4444','#eab308','#3b82f6','#D946EF']
-  return palette[Math.floor(Math.random()*palette.length)]
+export type SermonRow = {
+  id?: string
+  title: string
+  theme: string
+  date: string | null
+  start_time?: string | null
+  end_time?: string | null
+  location?: string | null
+  passages: string[]
+  notes: string
+  setlist: number[]
+  is_series_item: boolean
+  series_id: string | null
+  church_id?: string | null
 }
 
-export default function Page() {
-  const supabase = getSupabaseClient()
-  const [translation, setTranslation] = useState('KJV')
-  const [search, setSearch] = useState('')
-  const [theme, setTheme] = useState('')
-  const [tempo, setTempo] = useState('')
-  const [songs, setSongs] = useState<Song[]>(FALLBACK_SONGS)
-  const [verses, setVerses] = useState<Verse[]>(FALLBACK_VERSES)
-  const [series, setSeries] = useState<Series[]>([{ id: 'fall-2025-renew', name: 'Renewed: A Romans 12 Series', color: '#D946EF' }])
-  const [library, setLibrary] = useState<Sermon[]>([])
-  const [sermon, setSermon] = useState<Sermon>({ title:'', theme:'faith', date:'', passages:[], notes:'', setlist:[], isSeriesItem:false, seriesId:'' })
+export default function HomePage() {
+  const supabase = useMemo(() => getSupabase(), [])
+  const [songs, setSongs] = useState<SongRow[]>([])
+  const [passages, setPassages] = useState<string[]>([])
+  const [notes, setNotes] = useState('')
+  const [sermons, setSermons] = useState<SermonRow[]>([])
+  const [series, setSeries] = useState<any[]>([])
+  const [status, setStatus] = useState<string>('')
+  const [shareUrl, setShareUrl] = useState<string>('')
 
-  useEffect(()=>{(async()=>{
-    if (supabase) {
-      const { data: songRows } = await supabase.from('songs').select('*').order('id')
-      if (songRows) setSongs(songRows as any)
-      // Try normalized verses
-      const { data: verseTexts } = await supabase.from('verse_texts').select('*')
-      const { data: versesRows } = await supabase.from('verses').select('*')
-      if (verseTexts && versesRows) {
-        const byRef: Record<string, Record<string,string>> = {}
-        for (const vt of verseTexts as any[]) {
-          if (!byRef[vt.ref]) byRef[vt.ref] = {}
-          byRef[vt.ref][vt.translation_id] = vt.text_body
-        }
-        const merged = (versesRows as any[]).map(v => ({ ref: v.ref, themes: v.themes, text: byRef[v.ref] || {} }))
-        if (merged.length) setVerses(merged as any)
-      } else {
-        // fallback older schema
-      // fallback older schema
-const { data: versesOld } = await supabase.from('verses').select('*')
-if (versesOld) {
-  type OldVerseRow = {
-    ref: string
-    text_by_translation: Record<string, string>
-    themes: string[]
-  }
-  setVerses(
-    (versesOld as OldVerseRow[]).map((v: OldVerseRow) => ({
-      ref: v.ref,
-      text: v.text_by_translation,
-      themes: v.themes,
-    }))
-  )
-}
+  const [activeChurch, setActiveChurch] = useState<{ id: string | null, name?: string | null, feed_token?: string | null }>({ id: null })
 
+  const [sermon, setSermon] = useState<SermonRow>({
+    title: '',
+    theme: 'faith',
+    date: null,
+    start_time: null,
+    end_time: null,
+    location: '',
+    passages: [],
+    notes: '',
+    setlist: [],
+    is_series_item: false,
+    series_id: null,
+    church_id: null,
+  })
+
+  // Auto-onboard: ensure church + membership and capture church_id
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: cid, error } = await supabase.rpc('ensure_default_church', { church_name: 'My Church' })
+      if (!error && cid) {
+        setSermon(s => ({ ...s, church_id: cid as string }))
+        // If no church selected yet, set it as active
+        if (!activeChurch.id) setActiveChurch({ id: cid as string })
       }
-      const { data: seriesRows } = await supabase.from('series').select('*').order('created_at',{ascending:false})
-      if (seriesRows) setSeries(seriesRows as any)
-      const { data: sermonRows } = await supabase.from('sermons').select('*').order('created_at',{ascending:false})
-      if (sermonRows) setLibrary(sermonRows as any)
-    } else {
-      const raw = localStorage.getItem('sermon-studio-lib')
-      if (raw) setLibrary(JSON.parse(raw))
-      const rawS = localStorage.getItem('sermon-studio-series')
-      if (rawS) setSeries(JSON.parse(rawS))
-    }
-  })()},[])
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase])
 
-  useEffect(()=>{ if (!supabase) localStorage.setItem('sermon-studio-lib', JSON.stringify(library)) },[library, supabase])
-  useEffect(()=>{ if (!supabase) localStorage.setItem('sermon-studio-series', JSON.stringify(series)) },[series, supabase])
+  // Load songs once
+  useEffect(() => {
+    (async () => {
+      const { data: songRows } = await supabase
+        .from('songs')
+        .select('id,title,artist,themes,tempo,song_key,bpm,ccli_number')
+        .order('title')
+      if (songRows) setSongs(songRows as SongRow[])
+    })()
+  }, [supabase])
 
-  const selectedPassages = useMemo(()=> sermon.passages.map(ref=>verses.find(v=>v.ref===ref)).filter(Boolean) as Verse[], [sermon.passages, verses])
-  const ideas = useMemo(()=> suggestIdeas(sermon.theme, selectedPassages), [sermon.theme, selectedPassages])
-  const scriptureResults = useMemo(()=>{
-    const q = search.trim().toLowerCase()
-    if (!q) return verses
-    return verses.filter(v => v.ref.toLowerCase().includes(q) || v.themes.some(t=>t.includes(q)))
-  },[search, verses])
-  const songResults = useMemo(()=> songs.filter(s=> (theme? s.themes.includes(theme):true) && (tempo? s.tempo===tempo:true)), [songs, theme, tempo])
+  // Load series + sermons for the active church
+  useEffect(() => {
+    (async () => {
+      // SERIES
+      let qs = supabase.from('series').select('*').order('created_at', { ascending: false })
+      if (activeChurch.id) qs = qs.eq('church_id', activeChurch.id)
+      const { data: seriesRows } = await qs
+      if (seriesRows) setSeries(seriesRows as any[])
 
-  function addPassage(ref: string) { setSermon(s=> ({...s, passages: Array.from(new Set([...s.passages, ref]))})) }
-  function removePassage(ref: string) { setSermon(s=> ({...s, passages: s.passages.filter(r=>r!==ref)})) }
-  function addSong(id: number) { setSermon(s=> ({...s, setlist: Array.from(new Set([...s.setlist, id]))})) }
-  function removeSong(id: number) { setSermon(s=> ({...s, setlist: s.setlist.filter(x=>x!==id)})) }
+      // SERMONS
+      let q = supabase.from('sermons').select('*').order('created_at', { ascending: false }).limit(20)
+      if (activeChurch.id) q = q.eq('church_id', activeChurch.id)
+      const { data: sermonRows } = await q
+      if (sermonRows) setSermons(sermonRows as SermonRow[])
+    })()
+  }, [supabase, activeChurch.id])
+
+  function toggleSong(id: number) {
+    setSermon(prev => {
+      const has = prev.setlist.includes(id)
+      const setlist = has ? prev.setlist.filter(x => x !== id) : [...prev.setlist, id]
+      return { ...prev, setlist }
+    })
+  }
 
   async function saveSermon() {
-    const record: Sermon = { ...sermon, id: sermon.id || crypto.randomUUID() }
-    if (supabase) {
-      const payload = {
-        title: record.title || 'Untitled Sermon',
-        theme: record.theme,
-        date: record.date || null,
-        passages: record.passages,
-        notes: record.notes,
-        setlist: record.setlist,
-        is_series_item: record.isSeriesItem,
-        series_id: record.seriesId || null,
-      }
-      const { data, error } = await supabase.from('sermons').insert(payload).select('*').single()
-      if (!error && data) {
-        setLibrary(l => [{...data, id: data.id}, ...l])
-        setSermon({ title:'', theme:'faith', date:'', passages:[], notes:'', setlist:[], isSeriesItem:false, seriesId:'' })
-        alert('Saved to Supabase')
-        return
-      }
-      alert('Save error (Supabase): ' + (error?.message || 'unknown'))
-    } else {
-      setLibrary(l => [record, ...l])
-      setSermon({ title:'', theme:'faith', date:'', passages:[], notes:'', setlist:[], isSeriesItem:false, seriesId:'' })
-      alert('Saved locally')
+    setStatus('Saving…')
+    const payload: SermonRow = {
+      title: sermon.title || 'Untitled Sermon',
+      theme: sermon.theme,
+      date: sermon.date,
+      start_time: sermon.start_time || null,
+      end_time: sermon.end_time || null,
+      location: sermon.location || null,
+      passages,
+      notes,
+      setlist: sermon.setlist,
+      is_series_item: sermon.is_series_item,
+      series_id: sermon.series_id,
+      church_id: sermon.church_id || activeChurch.id || null,
     }
+
+    const { data, error } = await supabase.from('sermons').insert(payload).select().single()
+    if (error) {
+      setStatus(`❌ ${error.message}`)
+      return
+    }
+    setStatus('✅ Saved')
+    setSermons(prev => (data ? [data as SermonRow, ...prev] : prev))
   }
 
-  async function createSeries(name: string) {
-    const rec: Series = { id: crypto.randomUUID(), name, color: randomColor() }
-    if (supabase) {
-      const { data, error } = await supabase.from('series').insert({ name: rec.name, color: rec.color }).select('*').single()
-      if (!error && data) { setSeries(arr => [data as any, ...arr]); return }
-      alert('Series create error: ' + (error?.message || 'unknown'))
-    } else {
-      setSeries(arr => [rec, ...arr])
+  async function makeShareLink(id: string) {
+    setStatus('Creating share link…')
+    try {
+      const res = await fetch('/api/share/sermon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'Share failed')
+      setShareUrl(j.url)
+      await navigator.clipboard.writeText(j.url)
+      setStatus('🔗 Share link copied!')
+    } catch (e: any) {
+      setStatus(`❌ ${e.message || e}`)
     }
   }
 
   return (
-    <div className='p-6 max-w-7xl mx-auto space-y-6'>
-      <header className='flex items-center justify-between'>
-        <div>
-          <h1 className='text-3xl font-bold tracking-tight'>Pastor&apos;s Sermon Studio</h1>
-          <p className='text-sm text-gray-500'>Draft sermons, plan series, curate worship, and stay on schedule.</p>
-        </div>
-        <div className='flex gap-3'>
-          <Button onClick={saveSermon}>Save Draft</Button>
-          <Button className='btn-outline'>Add to Schedule</Button>
+    <main className="p-6 space-y-8 max-w-6xl mx-auto">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Pastor Sermon Studio</h1>
+        <div className="flex items-center gap-3">
+          <ChurchSwitcher
+            value={activeChurch.id}
+            onChange={(id, meta) => {
+              setActiveChurch({ id, name: meta?.name ?? null, feed_token: meta?.feed_token ?? null })
+              setSermon(s => ({ ...s, church_id: id }))
+            }}
+          />
+          <button
+            className="btn btn-outline"
+            onClick={async () => {
+              if (!activeChurch.id) return alert('Pick a church first')
+              const { data: token, error } = await supabase.rpc('ensure_church_feed_token', { _church_id: activeChurch.id })
+              if (error) return alert(error.message)
+              const base = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+              const url = `${base}/api/ics?token=${token}`
+              await navigator.clipboard.writeText(url)
+              alert('ICS feed URL copied to clipboard!')
+            }}
+          >
+            Copy ICS Feed
+          </button>
+          <AuthCard />
         </div>
       </header>
 
-      <Card><CardHeader><CardTitle>Current Sermon</CardTitle></CardHeader><CardContent className='space-y-4'>
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-          <div className='md:col-span-2'><label className='text-sm font-medium'>Title</label>
-            <Input placeholder='e.g., Renewed Minds' value={sermon.title} onChange={e=>setSermon({...sermon, title: e.target.value})} /></div>
-          <div><label className='text-sm font-medium'>Theme</label>
-            <select className='select' value={sermon.theme} onChange={(e)=>setSermon({...sermon, theme: e.target.value})}>
-              {THEMES.map(t=> <option key={t} value={t}>{t}</option>)}
-            </select></div>
-          <div><label className='text-sm font-medium'>Date</label>
-            <Input type='date' value={sermon.date} onChange={e=>setSermon({...sermon, date: e.target.value})} /></div>
-        </div>
-
-        <div className='flex items-center gap-4'>
-          <div className='flex items-center gap-2'>
-            <Switch id='series' checked={sermon.isSeriesItem} onCheckedChange={(v)=>setSermon({...sermon, isSeriesItem: v})} />
-            <label htmlFor='series' className='text-sm'>Part of a series</label>
-          </div>
-          {sermon.isSeriesItem && (
-            <select className='select w-64' value={sermon.seriesId} onChange={(e)=>setSermon({...sermon, seriesId: e.target.value})}>
-              <option value=''>Select series</option>
-              {series.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          )}
-          <Button className='btn-outline' onClick={()=>{ const name = window.prompt('Series name?'); if (name) createSeries(name) }}>New Series</Button>
-        </div>
-
-        <div>
-          <label className='text-sm font-medium'>Notes</label>
-          <Textarea rows={5} placeholder='Outline, application points, prayer, calls-to-action...' value={sermon.notes} onChange={e=>setSermon({...sermon, notes: e.target.value})} />
-        </div>
-
-        <div className='flex flex-wrap gap-2'>
-          {sermon.passages.map(ref => (
-            <Badge key={ref}><span>{ref}</span><button className='ml-2 text-gray-500' onClick={()=>removePassage(ref)}>×</button></Badge>
-          ))}
-        </div>
-      </CardContent></Card>
-
-      {/* Scripture */}
-      <Card><CardHeader><CardTitle>Browse Scripture</CardTitle></CardHeader><CardContent className='space-y-4'>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          <div className='md:col-span-2 flex gap-2'>
-            <Input placeholder="Search by reference or theme (e.g., 'John 3:16' or 'trust')" value={search} onChange={e=>setSearch(e.target.value)} />
-            <Button className='btn-outline'>Search</Button>
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Current Sermon</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm">Title</label>
+            <input className="input w-full" value={sermon.title}
+              onChange={e => setSermon(s => ({ ...s, title: e.target.value }))} />
           </div>
           <div>
-            <select className='select' value={translation} onChange={(e)=>setTranslation(e.target.value)}>
-              {TRANSLATIONS.map(t=> <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <label className="text-sm">Theme</label>
+            <input className="input w-full" value={sermon.theme}
+              onChange={e => setSermon(s => ({ ...s, theme: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-sm">Date</label>
+            <input type="date" className="input w-full"
+              value={sermon.date ?? ''}
+              onChange={e => setSermon(s => ({ ...s, date: e.target.value || null }))} />
           </div>
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          {scriptureResults.map(v => (
-            <Card key={v.ref}>
-              <CardHeader className='pb-2 flex flex-row items-center justify-between'>
-                <CardTitle className='text-base'>{v.ref}</CardTitle>
-                <div className='flex gap-1'>{v.themes.map(t => <span key={t} className='badge'>{t}</span>)}</div>
-              </CardHeader>
-              <CardContent className='space-y-2'>
-                <p className='text-sm leading-relaxed'>{v.text[translation]}</p>
-                <div className='flex gap-2'><Button onClick={()=>addPassage(v.ref)}>Add to Sermon</Button></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <p className='text-xs text-gray-500'>Licensing note: Some translations require publisher licenses for on-screen or printed use.</p>
-      </CardContent></Card>
 
-      {/* Ideas */}
-      <Card><CardHeader><CardTitle>Idea Gatherer</CardTitle></CardHeader><CardContent className='space-y-4'>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          <div><label className='text-sm font-medium'>Sermon Theme</label>
-            <select className='select' value={sermon.theme} onChange={e=>setSermon({...sermon, theme: e.target.value})}>{THEMES.map(t=> <option key={t} value={t}>{t}</option>)}</select></div>
-          <div className='md:col-span-2'><label className='text-sm font-medium'>From Passages</label>
-            <div className='flex flex-wrap gap-2'>{selectedPassages.length===0 ? <p className='text-sm text-gray-500'>Add passages in the Scripture section to seed ideas.</p> : null}{selectedPassages.map(p => <span key={p.ref} className='badge'>{p.ref}</span>)}</div></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm">Start time</label>
+            <input type="datetime-local" className="input w-full"
+              onChange={e => setSermon(s => ({ ...s, start_time: e.target.value || null }))} />
+          </div>
+          <div>
+            <label className="text-sm">End time</label>
+            <input type="datetime-local" className="input w-full"
+              onChange={e => setSermon(s => ({ ...s, end_time: e.target.value || null }))} />
+          </div>
+          <div>
+            <label className="text-sm">Location</label>
+            <input className="input w-full" placeholder="Sanctuary, Main Campus"
+              onChange={e => setSermon(s => ({ ...s, location: e.target.value || '' }))} />
+          </div>
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <Card><CardHeader className='pb-2'><CardTitle className='text-base'>Auto-Suggestions</CardTitle></CardHeader>
-            <CardContent><ul className='list-disc ml-5 space-y-2 text-sm'>{ideas.map((i, idx)=> <li key={idx}>{i}</li>)}</ul></CardContent></Card>
-          <div><label className='text-sm font-medium'>Your Additions</label><Textarea rows={10} placeholder='Add hooks, illustrations, testimonies, commentaries, and applications...' value={sermon.notes} onChange={e=>setSermon({...sermon, notes: e.target.value})} /></div>
-        </div>
-      </CardContent></Card>
 
-      {/* Worship */}
-      <Card><CardHeader><CardTitle>Praise & Worship Setlist</CardTitle></CardHeader><CardContent className='space-y-4'>
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-          <div><label className='text-sm font-medium'>Filter by Theme</label>
-            <select className='select' value={theme} onChange={e=>setTheme(e.target.value)}><option value=''>Any</option>{THEMES.map(t=> <option key={t} value={t}>{t}</option>)}</select></div>
-          <div><label className='text-sm font-medium'>Tempo</label>
-            <select className='select' value={tempo} onChange={e=>setTempo(e.target.value)}><option value=''>Any</option><option value='slow'>Slow</option><option value='mid'>Mid</option><option value='up'>Upbeat</option></select></div>
-          <div className='md:col-span-2 flex items-end'><Button className='btn-outline' onClick={()=> setTheme(sermon.theme)}>Match Current Sermon Theme</Button></div>
-        </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <Card><CardHeader className='pb-2'><CardTitle className='text-base'>Song Suggestions</CardTitle></CardHeader>
-            <CardContent className='space-y-2'>
-              {songResults.map(s => (
-                <div key={s.id} className='flex items-center justify-between p-2 rounded-xl border'>
-                  <div><div className='font-medium'>{s.title}</div><div className='text-xs text-gray-500'>{s.artist} • {s.tempo} • {s.themes.join(', ')}</div></div>
-                  <Button onClick={()=>addSong(s.id)}>Add</Button>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <label className="text-sm">Notes</label>
+            <textarea className="textarea w-full h-32" value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm">Passages</label>
+            <div className="flex gap-2">
+              <input className="input flex-1" placeholder="e.g., John 3:16"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const val = (e.target as HTMLInputElement).value.trim()
+                    if (val) setPassages(p => Array.from(new Set([...p, val])))
+                    ;(e.target as HTMLInputElement).value = ''
+                  }
+                }} />
+              <button className="btn" onClick={() => setPassages([])}>Clear</button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {passages.map((p) => (
+                <span key={p} className="badge">{p}</span>
               ))}
-              {songResults.length===0 && <p className='text-sm text-gray-500'>No matches. Try a different filter.</p>}
-            </CardContent></Card>
-          <Card><CardHeader className='pb-2'><CardTitle className='text-base'>Current Setlist</CardTitle></CardHeader>
-            <CardContent className='space-y-2'>
-              {sermon.setlist.map(id => { const s = songs.find(x=>x.id===id); if (!s) return null; return (
-                <div key={id} className='flex items-center justify-between p-2 rounded-xl border'>
-                  <div><div className='font-medium'>{s.title}</div><div className='text-xs text-gray-500'>{s.artist}</div></div>
-                  <Button className='btn-outline' onClick={()=>removeSong(id)}>Remove</Button>
-                </div>
-              )})}
-              {sermon.setlist.length===0 && <p className='text-sm text-gray-500'>No songs yet. Add from suggestions.</p>}
-            </CardContent></Card>
-        </div>
-      </CardContent></Card>
-
-      {/* Series */}
-      <Card><CardHeader><CardTitle>Series Planner</CardTitle></CardHeader><CardContent className='space-y-4'>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          <div className='md:col-span-2'><label className='text-sm font-medium'>Attach to Series</label>
-            <div className='flex gap-2 items-center'>
-              <select className='select w-64' value={sermon.seriesId} onChange={(e)=>setSermon({...sermon, seriesId: e.target.value, isSeriesItem: true})}>
-                <option value=''>Select series</option>
-                {series.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <Button className='btn-outline' onClick={()=>{ const name = window.prompt('Series name?'); if (name) createSeries(name) }}>New Series</Button>
             </div>
           </div>
-          <div className='flex items-end'><div className='flex items-center gap-2'><Switch id='series2' checked={sermon.isSeriesItem} onCheckedChange={(v)=>setSermon({...sermon, isSeriesItem: v})} /><label htmlFor='series2' className='text-sm'>Make current sermon part of selected series</label></div></div>
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          {series.map(s => (
-            <Card key={s.id} className='border' style={{ borderColor: s.color }}>
-              <CardHeader className='pb-2 flex flex-row justify-between items-center'><CardTitle className='text-base'>{s.name}</CardTitle><div className='w-3 h-3 rounded-full' style={{ background: s.color }} /></CardHeader>
-              <CardContent><p className='text-sm text-gray-500'>Attach saved sermons to this series from the library section.</p></CardContent>
-            </Card>
+
+        <div className="space-y-2">
+          <h3 className="font-medium">Worship Setlist</h3>
+          <div className="overflow-auto border rounded-lg">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-left">
+                  <th className="p-2">Add</th>
+                  <th className="p-2">Title</th>
+                  <th className="p-2">Artist</th>
+                  <th className="p-2">Key</th>
+                  <th className="p-2">BPM</th>
+                  <th className="p-2">Tempo</th>
+                  <th className="p-2">CCLI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {songs.map((s: SongRow) => {
+                  const checked = sermon.setlist.includes(s.id)
+                  return (
+                    <tr key={s.id} className="border-t">
+                      <td className="p-2">
+                        <input type="checkbox" checked={checked} onChange={() => toggleSong(s.id)} />
+                      </td>
+                      <td className="p-2">{s.title}</td>
+                      <td className="p-2">{s.artist}</td>
+                      <td className="p-2">{s.song_key || '-'}</td>
+                      <td className="p-2">{s.bpm ?? '-'}</td>
+                      <td className="p-2 uppercase">{s.tempo}</td>
+                      <td className="p-2">{s.ccli_number || '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 pt-2">
+          <button className="btn btn-primary" onClick={saveSermon}>Save Draft</button>
+          {/* Fallback ICS (year range) */}
+          <a
+            className="btn btn-outline"
+            href={`/api/ics?from=${new Date().getFullYear()}-01-01&to=${new Date().getFullYear()}-12-31`}
+            target="_blank"
+          >
+            Export Year (ICS)
+          </a>
+        </div>
+
+        {shareUrl && (
+          <div className="text-sm text-emerald-600">
+            Share URL: <a className="underline" href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Saved Sermons & Schedule</h2>
+        <div className="grid gap-3">
+          {sermons.map((s: SermonRow) => (
+            <div key={s.id} className="border rounded-lg p-3 flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="font-medium">{s.title}</div>
+                <div className="text-sm text-gray-500">
+                  {s.date || (s.start_time ? new Date(s.start_time).toISOString().slice(0,10) : '')}
+                  {s.location ? ` • ${s.location}` : ''}
+                </div>
+                {Array.isArray(s.passages) && s.passages.length > 0 && (
+                  <div className="text-xs text-gray-600">Passages: {s.passages.join(', ')}</div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {s.id && (
+                  <a className="btn btn-outline" href={`/api/ics?sermonId=${s.id}`}>Export ICS</a>
+                )}
+                {s.id && (
+                  <button className="btn" onClick={() => makeShareLink(s.id!)}>Get Share Link</button>
+                )}
+              </div>
+            </div>
           ))}
         </div>
-      </CardContent></Card>
-
-      {/* Library */}
-      <Card><CardHeader><CardTitle>Saved Sermons & Schedule</CardTitle></CardHeader><CardContent className='space-y-3'>
-        {library.length===0 && <p className='text-sm text-gray-500'>No saved sermons yet. Draft one and click Save.</p>}
-        {library.map(s => (
-          <div key={(s as any).id} className='p-3 rounded-xl border flex items-start justify-between'>
-            <div>
-              <div className='font-medium'>{(s as any).title || 'Untitled Sermon'}</div>
-              <div className='text-xs text-gray-500'>
-                {(s as any).date ? new Date((s as any).date).toDateString() : 'No date'} • Theme: {(s as any).theme}
-                {(s as any).is_series_item && (s as any).series_id ? ` • Series: ${(s as any).series_id}` : ''}
-              </div>
-              <div className='mt-1 flex flex-wrap gap-1'>{(s as any).passages?.map((r:string)=> <span key={r} className='badge'>{r}</span>)}</div>
-            </div>
-            <div className='flex gap-2'>
-              <Button className='btn-outline' onClick={()=>{
-                const loaded: Sermon = { id:(s as any).id, title:(s as any).title, theme:(s as any).theme, date:(s as any).date || '', passages:(s as any).passages || [], notes:(s as any).notes || '', setlist:(s as any).setlist || [], isSeriesItem:(s as any).is_series_item || false, seriesId:(s as any).series_id || '' }
-                setSermon(loaded)
-              }}>Edit</Button>
-              {!supabase && <Button className='bg-red-600 text-white hover:bg-red-500' onClick={()=>{ setLibrary(arr => arr.filter(x=> (x as any).id !== (s as any).id)) }}>Delete</Button>}
-            </div>
-          </div>
-        ))}
-      </CardContent></Card>
-
-    </div>
+      </section>
+    </main>
   )
 }

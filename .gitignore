@@ -1,18 +1,43 @@
-Set-Content -Path .gitignore -Value @"
-# Node/Next
+# --- Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# --- Next.js / build outputs
 .next/
-dist/
+.next/cache/
 out/
+dist/
 .vercel/
+.turbo/
+.swc/
+*.tsbuildinfo
 
-# Env (secrets)
-.env
-.env.local
-.env.*.local
-*.env
+# --- Coverage / caches
+coverage/
+.nyc_output/
+.cache/
 
-# OS / editor
+# --- Env & secrets (VERY IMPORTANT)
+.env*
+*.local
+supabase/.env
+supabase/.temp
+supabase/**/secrets.*
+*.pem
+*.key
+
+# --- Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- OS/editor junk
 .DS_Store
 Thumbs.db
-"@
+.idea/
+.vscode/
+
+# --- Misc
+*.swp

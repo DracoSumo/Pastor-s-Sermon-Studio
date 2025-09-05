@@ -1,0 +1,62 @@
+[
+  {
+    "ref": "John 3:16",
+    "text": {
+      "KJV": "For God so loved the world...",
+      "ESV": "For God so loved the world...",
+      "NIV": "For God so loved the world...",
+      "NKJV": "For God so loved the world...",
+      "CSB": "For God loved the world..."
+    },
+    "themes": [
+      "salvation",
+      "love",
+      "gospel"
+    ]
+  },
+  {
+    "ref": "Psalm 23:1",
+    "text": {
+      "KJV": "The LORD is my shepherd; I shall not want.",
+      "ESV": "The Lord is my shepherd; I shall not want.",
+      "NIV": "The Lord is my shepherd, I lack nothing.",
+      "NKJV": "The Lord is my shepherd; I shall not want.",
+      "CSB": "The Lord is my shepherd; I have what I need."
+    },
+    "themes": [
+      "trust",
+      "guidance",
+      "shepherd"
+    ]
+  },
+  {
+    "ref": "Matthew 28:19-20",
+    "text": {
+      "KJV": "Go ye therefore...",
+      "ESV": "Go therefore...",
+      "NIV": "Therefore go...",
+      "NKJV": "Go therefore...",
+      "CSB": "Go, therefore..."
+    },
+    "themes": [
+      "mission",
+      "discipleship",
+      "great commission"
+    ]
+  },
+  {
+    "ref": "Romans 12:2",
+    "text": {
+      "KJV": "Be not conformed...",
+      "ESV": "Do not be conformed...",
+      "NIV": "Do not conform...",
+      "NKJV": "Do not be conformed...",
+      "CSB": "Do not be conformed..."
+    },
+    "themes": [
+      "transformation",
+      "holiness",
+      "mind"
+    ]
+  }
+]

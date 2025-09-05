@@ -1,0 +1,7 @@
+git add .husky/pre-commit
+git commit -m "Migrate husky hook to v10"
+# block commits if staged diff contains these strings
+if git diff --cached -U0 | grep -E 'SUPABASE_SERVICE_ROLE_KEY|BEGIN PRIVATE KEY|aws_secret_access_key|NEXT_PUBLIC_SUPABASE_ANON_KEY=' > /dev/null; then
+  echo "❌ Secret-like string found in staged changes. Remove it before committing."
+  exit 1
+fi
